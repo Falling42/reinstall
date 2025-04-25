@@ -4589,7 +4589,82 @@ EOF
             # bios 删除 efi 条目
             sed -i '/[[:space:]]\/boot\/efi[[:space:]]/d' $os_dir/etc/fstab
         fi
+        ##TODO
+            # --- 在这里插入你的自定义恢复与配置逻辑 ---
+        info "开始自定义恢复与配置 (Cloudflared, NPC)" # 使用脚本的 info 函数记录
 
+        # --- 开始：配置 Cloudflare ---
+        info false "正在配置 Cloudflare APT 仓库..."
+        # Add cloudflare gpg key (需要 chroot)
+        chroot "$os_dir" mkdir -p --mode=0755 /usr/share/keyrings
+        # 使用 initrd 的 wget 下载 key 到临时位置，再 cp 到 chroot 环境
+        wget https://pkg.cloudflare.com/cloudflare-main.gpg -O /tmp/cloudflare.gpg
+        if [ $? -ne 0 ]; then error_and_exit "下载 Cloudflare GPG key 失败"; fi
+        # 注意：直接复制到 $os_dir/... 路径，不需要对 cp 使用 chroot
+        cp /tmp/cloudflare.gpg "$os_dir/usr/share/keyrings/cloudflare-main.gpg"
+        rm /tmp/cloudflare.gpg # 清理临时 key
+
+        # Add repo (需要 chroot, 且目标系统需要 lsb-release)
+        if ! is_have_cmd_on_disk "$os_dir" lsb_release; then
+            info false "为目标系统安装 lsb-release..."
+            # 使用脚本内的 chroot_apt_install 函数 (如果它已被定义并可用)
+            chroot_apt_install "$os_dir" lsb-release
+        fi
+        chroot "$os_dir" sh -c 'echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/cloudflared.list'
+
+        # install cloudflared (需要 chroot)
+        info false "正在安装 cloudflared..."
+        chroot_apt_install "$os_dir" cloudflared # 函数已包含 update
+        if [ $? -ne 0 ]; then error_and_exit "安装 cloudflared 失败"; fi
+
+        # Register cloudflared service (需要 chroot)
+        info false "正在注册 cloudflared 服务..."
+        chroot "$os_dir" cloudflared service install eyJhIjoiZmY2N2E2NDA1MmY3Njk0YzNjMzQwN2FjYjgwNTQ2ZDciLCJ0IjoiM2FjZGVmMjItYzI4ZS00NmJlLTkyOWUtYmE2ODg3NGY4M2RkIiwicyI6Ill6STRPV1UyTUdJdE9EWmlaaTAwWWpaaUxUbGhNVEF0TWpSaU56TTRNVEpoTW1JMCJ9
+        # 启用服务 (需要 chroot)
+        info false "正在启用 cloudflared 服务..."
+        if chroot "$os_dir" systemctl --version > /dev/null 2>&1; then
+            chroot "$os_dir" systemctl enable cloudflared
+        fi
+        info false "Cloudflare 配置完成。"
+        # --- 结束：配置 Cloudflare ---
+
+        # --- 开始：恢复 NPC 配置 ---
+        info false "正在恢复 NPC 配置..."
+        # 下载备份 (在 initrd 环境执行)
+        wget https://alist.falling42.net/d/storage/npc.tar.gz -O /tmp/npc.tar.gz
+        if [ $? -ne 0 ]; then error_and_exit "下载 NPC 备份失败"; fi
+
+        # 恢复文件 (需要 chroot 操作目标目录)
+        chroot "$os_dir" mkdir -p /root/npc
+        # 使用 initrd 的 tar 解压到目标路径
+        tar -xzf /tmp/npc.tar.gz -C "$os_dir/root/npc" --strip-components=1 # 假设压缩包内是 npc 目录内容
+        if [ $? -ne 0 ]; then error_and_exit "解压 NPC 备份失败"; fi
+
+        # 设置权限 (需要 chroot)
+        chroot "$os_dir" chown -R root:root /root/npc
+        chroot "$os_dir" chmod +x /os/root/npc/npc # 确保可执行
+
+        # 清理临时文件 (在 initrd 环境执行)
+        rm -f /tmp/npc.tar.gz
+        info false "NPC 配置恢复完成。"
+        # --- 结束：恢复 NPC 配置 ---
+
+        # --- 开始：启动 NPC 的命令 ---
+        info false "正在安装和启动 NPC 服务..."
+        # 使用 sh -c 在 chroot 环境下执行 cd 和 install
+        chroot "$os_dir" sh -c 'cd /root/npc && ./npc install'
+        if [ $? -ne 0 ]; then warn "NPC install 命令可能失败"; fi # 添加警告
+        # 启动 npc 服务 (在 chroot 环境执行)
+        chroot "$os_dir" npc start
+        if [ $? -ne 0 ]; then warn "NPC start 命令可能失败"; fi # 添加警告
+        info false "NPC 服务已启动 (或尝试启动)。"
+        # --- 结束：启动 NPC 的命令 ---
+
+        info "自定义恢复与配置流程结束"
+        # --- 插入自定义逻辑结束 ---
+
+
+        # --- 函数原有的最后步骤 (如果 restore_resolv_conf 在这里) ---
         restore_resolv_conf $os_dir
     }
 
@@ -4777,81 +4852,6 @@ EOF
 
     # 基本配置
     basic_init /os
-
-    # --- 在这里插入你的自定义恢复与配置逻辑 ---
-    info "开始自定义恢复与配置 (Cloudflared, NPC)" # 使用脚本的 info 函数记录
-
-    # --- 开始：配置 Cloudflare ---
-    info false "正在配置 Cloudflare APT 仓库..."
-    # Add cloudflare gpg key (需要 chroot)
-    chroot /os mkdir -p --mode=0755 /usr/share/keyrings
-    # 使用 initrd 的 wget 下载 key 到临时位置，再 chroot cp 进去
-    wget https://pkg.cloudflare.com/cloudflare-main.gpg -O /tmp/cloudflare.gpg
-    if [ $? -ne 0 ]; then error_and_exit "下载 Cloudflare GPG key 失败"; fi
-    cp /tmp/cloudflare.gpg /os/usr/share/keyrings/cloudflare-main.gpg
-    rm /tmp/cloudflare.gpg # 清理临时 key
-
-    # Add repo (需要 chroot, 且目标系统需要 lsb-release)
-    # 确保 lsb-release 已安装 (可能需要在此之前 chroot 安装)
-    if ! is_have_cmd_on_disk /os lsb_release; then
-        info false "为目标系统安装 lsb-release..."
-        # 这里需要根据目标系统的包管理器执行安装命令
-        chroot /os apt-get update # 假设是 apt
-        chroot /os apt-get install -y lsb-release
-    fi
-    chroot /os sh -c 'echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/cloudflared.list'
-
-    # install cloudflared (需要 chroot)
-    info false "正在安装 cloudflared..."
-    chroot /os apt-get update # 假设是 apt
-    chroot /os apt-get install -y cloudflared
-    if [ $? -ne 0 ]; then error_and_exit "安装 cloudflared 失败"; fi
-
-    # Register cloudflared service (需要 chroot)
-    info false "正在注册 cloudflared 服务..."
-    chroot /os cloudflared service install eyJhIjoiZmY2N2E2NDA1MmY3Njk0YzNjMzQwN2FjYjgwNTQ2ZDciLCJ0IjoiM2FjZGVmMjItYzI4ZS00NmJlLTkyOWUtYmE2ODg3NGY4M2RkIiwicyI6Ill6STRPV1UyTUdJdE9EWmlaaTAwWWpaaUxUbGhNVEF0TWpSaU56TTRNVEpoTW1JMCJ9
-    # 启用服务 (需要 chroot)
-    info false "正在启用 cloudflared 服务..."
-    if chroot /os systemctl --version > /dev/null 2>&1; then
-        chroot /os systemctl enable cloudflared
-    fi
-    info false "Cloudflare 配置完成。"
-    # --- 结束：配置 Cloudflare ---
-
-    # --- 开始：恢复 NPC 配置 ---
-    info false "正在恢复 NPC 配置..."
-    # 下载备份 (在 initrd 环境执行)
-    wget https://alist.falling42.net/d/storage/npc.tar.gz -O /tmp/npc.tar.gz
-    if [ $? -ne 0 ]; then error_and_exit "下载 NPC 备份失败"; fi
-
-    # 恢复文件 (需要 chroot 操作目标目录)
-    chroot /os mkdir -p /root/npc
-    # 使用 initrd 的 tar 解压到目标路径
-    tar -xzf /tmp/npc.tar.gz -C /os/root/npc --strip-components=1
-    if [ $? -ne 0 ]; then error_and_exit "解压 NPC 备份失败"; fi
-
-    # 设置权限 (需要 chroot)
-    chroot /os chown -R root:root /root/npc
-    chroot /os chmod +x /root/npc/npc # 确保可执行
-
-    # 清理临时文件 (在 initrd 环境执行)
-    rm -f /tmp/npc.tar.gz
-    info false "NPC 配置恢复完成。"
-    # --- 结束：恢复 NPC 配置 ---
-
-    # --- 开始：启动 NPC 的命令 ---
-    info false "正在安装和启动 NPC 服务..."
-    # 使用 sh -c 在 chroot 环境下执行 cd 和 install
-    chroot /os sh -c 'cd /root/npc && ./npc install'
-    if [ $? -ne 0 ]; then warn "NPC install 命令可能失败"; fi
-    # 启动 npc 服务 (在 chroot 环境执行)
-    chroot /os npc start
-    if [ $? -ne 0 ]; then warn "NPC start 命令可能失败"; fi
-    info false "NPC 服务已启动 (或尝试启动)。"
-    # --- 结束：启动 NPC 的命令 ---
-
-    info "自定义恢复与配置流程结束"
-    # --- 插入自定义逻辑结束 ---
 
     # 最后才删除 cloud-init
     # 因为生成 netplan/sysconfig 网络配置要用目标系统的 cloud-init
