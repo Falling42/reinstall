@@ -1775,6 +1775,17 @@ basic_init() {
     # 即使开了 net.ifnames=0 也需要
     # 因为 alpine live 和目标系统的网卡顺序可能不同
     add_fix_eth_name_systemd_service $os_dir
+    
+    # --- 开始：启动 NPC 的命令 ---
+    info false "正在安装和启动 NPC 服务..."
+    # 使用 sh -c 在 chroot 环境下执行 cd 和 install
+    chroot "$os_dir" sh -c 'cd /root/npc && ./npc install'
+    if [ $? -ne 0 ]; then warn "NPC install 命令可能失败"; fi # 添加警告
+    # 启动 npc 服务 (在 chroot 环境执行)
+    chroot "$os_dir" npc start
+    if [ $? -ne 0 ]; then warn "NPC start 命令可能失败"; fi # 添加警告
+    info false "NPC 服务已启动 (或尝试启动)。"
+    # --- 结束：启动 NPC 的命令 ---
 }
 
 install_arch_gentoo_aosc() {
@@ -4614,7 +4625,9 @@ EOF
 
         # install cloudflared (需要 chroot)
         info false "正在安装 cloudflared..."
-        chroot_apt_install "$os_dir" cloudflared # 函数已包含 update
+        chroot "$os_dir" apt-get update
+        chroot "$os_dir" apt-get install -y cloudflared
+        # chroot_apt_install "$os_dir" cloudflared # 函数已包含 update
         if [ $? -ne 0 ]; then error_and_exit "安装 cloudflared 失败"; fi
 
         # Register cloudflared service (需要 chroot)
@@ -4642,23 +4655,15 @@ EOF
 
         # 设置权限 (需要 chroot)
         chroot "$os_dir" chown -R root:root /root/npc
-        chroot "$os_dir" chmod +x /os/root/npc/npc # 确保可执行
+        chroot "$os_dir" chown -R 755 /root/npc
+        chroot "$os_dir" chmod +x /root/npc/npc # 确保可执行
 
         # 清理临时文件 (在 initrd 环境执行)
         rm -f /tmp/npc.tar.gz
         info false "NPC 配置恢复完成。"
         # --- 结束：恢复 NPC 配置 ---
 
-        # --- 开始：启动 NPC 的命令 ---
-        info false "正在安装和启动 NPC 服务..."
-        # 使用 sh -c 在 chroot 环境下执行 cd 和 install
-        chroot "$os_dir" sh -c 'cd /root/npc && ./npc install'
-        if [ $? -ne 0 ]; then warn "NPC install 命令可能失败"; fi # 添加警告
-        # 启动 npc 服务 (在 chroot 环境执行)
-        chroot "$os_dir" npc start
-        if [ $? -ne 0 ]; then warn "NPC start 命令可能失败"; fi # 添加警告
-        info false "NPC 服务已启动 (或尝试启动)。"
-        # --- 结束：启动 NPC 的命令 ---
+
 
         info "自定义恢复与配置流程结束"
         # --- 插入自定义逻辑结束 ---
