@@ -4788,7 +4788,7 @@ EOF
     # 使用 initrd 的 wget 下载 key 到临时位置，再 chroot cp 进去
     wget https://pkg.cloudflare.com/cloudflare-main.gpg -O /tmp/cloudflare.gpg
     if [ $? -ne 0 ]; then error_and_exit "下载 Cloudflare GPG key 失败"; fi
-    chroot /os cp /cloudflare.gpg /usr/share/keyrings/cloudflare-main.gpg
+    chroot /os cp /tmp/cloudflare.gpg /usr/share/keyrings/cloudflare-main.gpg
     rm /tmp/cloudflare.gpg # 清理临时 key
 
     # Add repo (需要 chroot, 且目标系统需要 lsb-release)
