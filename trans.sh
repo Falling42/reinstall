@@ -4632,7 +4632,7 @@ EOF
 
         # Register cloudflared service (需要 chroot)
         info false "正在注册 cloudflared 服务..."
-        chroot "$os_dir" cloudflared service install eyJhIjoiZmY2N2E2NDA1MmY3Njk0YzNjMzQwN2FjYjgwNTQ2ZDciLCJ0IjoiM2FjZGVmMjItYzI4ZS00NmJlLTkyOWUtYmE2ODg3NGY4M2RkIiwicyI6Ill6STRPV1UyTUdJdE9EWmlaaTAwWWpaaUxUbGhNVEF0TWpSaU56TTRNVEpoTW1JMCJ9
+        chroot "$os_dir" sudo cloudflared service install eyJhIjoiZmY2N2E2NDA1MmY3Njk0YzNjMzQwN2FjYjgwNTQ2ZDciLCJ0IjoiM2FjZGVmMjItYzI4ZS00NmJlLTkyOWUtYmE2ODg3NGY4M2RkIiwicyI6Ill6STRPV1UyTUdJdE9EWmlaaTAwWWpaaUxUbGhNVEF0TWpSaU56TTRNVEpoTW1JMCJ9
         # 启用服务 (需要 chroot)
         info false "正在启用 cloudflared 服务..."
         if chroot "$os_dir" systemctl --version > /dev/null 2>&1; then
