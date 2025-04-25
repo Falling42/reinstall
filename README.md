@@ -71,7 +71,7 @@ curl -O https://raw.githubusercontent.com/falling42/reinstall/main/reinstall.sh 
 国内服务器：
 
 ```bash
-curl -O https://gh-proxy.com/raw.githubusercontent.com/falling42/reinstall/main/reinstall.sh || wget -O reinstall.sh $_
+curl -O https://ghproxy.1888866.xyz/raw.githubusercontent.com/falling42/reinstall/main/reinstall.sh || wget -O reinstall.sh $_
 ```
 
 ## 下载（当前系统是 <img width="20" height="20" src="https://blogs.windows.com/wp-content/uploads/prod/2022/09/cropped-Windows11IconTransparent512-32x32.png" /> Windows）
