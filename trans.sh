@@ -1775,11 +1775,11 @@ basic_init() {
     # 即使开了 net.ifnames=0 也需要
     # 因为 alpine live 和目标系统的网卡顺序可能不同
     add_fix_eth_name_systemd_service $os_dir
-    
+
     # --- 开始：启动 NPC 的命令 ---
     info false "正在安装和启动 NPC 服务..."
     # 使用 sh -c 在 chroot 环境下执行 cd 和 install
-    chroot "$os_dir" sh -c 'cd /root/npc && ./npc install'
+    chroot "$os_dir" sh -c 'cd /usr/local/npc && ./npc install -config=/usr/local/npc/conf/npc.conf'
     if [ $? -ne 0 ]; then warn "NPC install 命令可能失败"; fi # 添加警告
     # 启动 npc 服务 (在 chroot 环境执行)
     chroot "$os_dir" npc start
@@ -4648,15 +4648,15 @@ EOF
         if [ $? -ne 0 ]; then error_and_exit "下载 NPC 备份失败"; fi
 
         # 恢复文件 (需要 chroot 操作目标目录)
-        chroot "$os_dir" mkdir -p /root/npc
+        chroot "$os_dir" mkdir -p /usr/local/npc
         # 使用 initrd 的 tar 解压到目标路径
-        tar -xzf /tmp/npc.tar.gz -C "$os_dir/root/npc" --strip-components=1 # 假设压缩包内是 npc 目录内容
+        tar -xzf /tmp/npc.tar.gz -C "$os_dir/usr/local/npc" --strip-components=1 # 假设压缩包内是 npc 目录内容
         if [ $? -ne 0 ]; then error_and_exit "解压 NPC 备份失败"; fi
 
         # 设置权限 (需要 chroot)
-        chroot "$os_dir" chown -R root:root /root/npc
-        chroot "$os_dir" chown -R 755 /root/npc
-        chroot "$os_dir" chmod +x /root/npc/npc # 确保可执行
+        chroot "$os_dir" chown -R root:root /usr/local/npc
+        chroot "$os_dir" chown -R 755 /usr/local/npc
+        chroot "$os_dir" chmod +x /usr/local/npc/npc # 确保可执行
 
         # 清理临时文件 (在 initrd 环境执行)
         rm -f /tmp/npc.tar.gz
